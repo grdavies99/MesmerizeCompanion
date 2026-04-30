@@ -29,17 +29,12 @@ final class BonjourBrowser {
 
         let params = NWParameters()
         params.includePeerToPeer = true
-        let browser = NWBrowser(for: .bonjour(type: "_http._tcp", domain: nil), using: params)
+        let browser = NWBrowser(for: .bonjour(type: "_mesmerize._tcp", domain: nil), using: params)
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self else { return }
             for result in results {
-                if case let .service(name, _, _, _) = result.endpoint {
-                    // Only resolve services that look like Mesmerize
-                    if name.localizedCaseInsensitiveContains("mesmerize") {
-                        self.resolve(result: result)
-                    }
-                }
+                self.resolve(result: result)
             }
         }
 
@@ -69,7 +64,7 @@ final class BonjourBrowser {
             if case .ready = state {
                 if let innerEndpoint = connection.currentPath?.remoteEndpoint,
                    case let .hostPort(host, port) = innerEndpoint {
-                    let hostString: String
+                    var hostString: String
                     switch host {
                     case .ipv4(let addr):
                         hostString = "\(addr)"
@@ -79,6 +74,10 @@ final class BonjourBrowser {
                         hostString = name
                     @unknown default:
                         hostString = "\(host)"
+                    }
+                    // Strip IPv6 zone ID (e.g. "%en0") — not valid in URLs
+                    if let percentIndex = hostString.firstIndex(of: "%") {
+                        hostString = String(hostString[..<percentIndex])
                     }
                     let portInt = Int(port.rawValue)
                     let name: String

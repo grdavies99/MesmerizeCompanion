@@ -29,9 +29,22 @@
 		D1FAE5762F9CF6D2000FBAED /* MesmerizeCompanionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MesmerizeCompanionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D14198CA2F9CFBA70019DB8A /* Exceptions for "MesmerizeCompanion" folder in "MesmerizeCompanion" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D1FAE55C2F9CF6CF000FBAED /* MesmerizeCompanion */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D1FAE55F2F9CF6CF000FBAED /* MesmerizeCompanion */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D14198CA2F9CFBA70019DB8A /* Exceptions for "MesmerizeCompanion" folder in "MesmerizeCompanion" target */,
+			);
 			path = MesmerizeCompanion;
 			sourceTree = "<group>";
 		};
@@ -400,6 +413,8 @@
 				DEVELOPMENT_TEAM = 2MQP4M6C2C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MesmerizeCompanion/Info.plist;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "we want to use this to connect to your streaming device";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +447,8 @@
 				DEVELOPMENT_TEAM = 2MQP4M6C2C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MesmerizeCompanion/Info.plist;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "we want to use this to connect to your streaming device";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

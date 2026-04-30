@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var browser = BonjourBrowser()
+    @State private var observer = MediaStateObserver()
 
     // Connection state
     @State private var manualHost = ""
@@ -21,6 +22,19 @@ struct ContentView: View {
     @State private var urlText = "https://www.google.com"
     @State private var selectedMode: MesmerizeService.FirefoxMode = .newTab
 
+    // Skip-to-position
+    @State private var skipPositionText = ""
+
+    // Seek
+    @State private var seekSeconds: Double = 10
+
+    // Volume
+    @State private var volumeLevel: Double = 0.5
+
+    // Settings
+    @AppStorage("mediaControlsEnabled") private var mediaControlsEnabled = true
+    @AppStorage("liveStreamEnabled") private var liveStreamEnabled = true
+
     // Feedback
     @State private var statusMessage = ""
     @State private var isLoading = false
@@ -30,13 +44,22 @@ struct ContentView: View {
             List {
                 connectionSection
                 if isConnected {
+                    settingsSection
+                    if liveStreamEnabled {
+                        nowPlayingSection
+                    }
                     firefoxSection
-                    mediaSection
+                    if mediaControlsEnabled {
+                        mediaSection
+                    }
                 }
             }
             .navigationTitle("Mesmerize")
             .onAppear { browser.startBrowsing() }
-            .onDisappear { browser.stopBrowsing() }
+            .onDisappear {
+                browser.stopBrowsing()
+                observer.disconnect()
+            }
         }
     }
 
@@ -56,7 +79,6 @@ struct ContentView: View {
                     .foregroundStyle(.red)
                 }
             } else {
-                // Discovered services
                 if !browser.services.isEmpty {
                     ForEach(browser.services) { svc in
                         Button {
@@ -70,18 +92,38 @@ struct ContentView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
+                                Spacer()
+                                if isLoading {
+                                    ProgressView()
+                                }
                             }
                         }
+                        .disabled(isLoading)
                     }
                 } else if browser.isSearching {
                     HStack {
                         ProgressView()
-                        Text("Searching for Mesmerize services…")
+                        Text("Scanning for services…")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    HStack {
+                        Image(systemName: "wifi.exclamationmark")
+                            .foregroundStyle(.secondary)
+                        Text("No services found")
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                // Manual entry
+                Button {
+                    browser.stopBrowsing()
+                    browser.startBrowsing()
+                } label: {
+                    Label("Rescan", systemImage: "arrow.clockwise")
+                }
+                .disabled(browser.isSearching)
+
+                // Manual entry fallback
                 HStack {
                     TextField("Host / IP", text: $manualHost)
                         .textContentType(.URL)
@@ -94,7 +136,7 @@ struct ContentView: View {
                         let port = Int(manualPort) ?? 8765
                         connect(host: manualHost, port: port, label: manualHost)
                     }
-                    .disabled(manualHost.isEmpty)
+                    .disabled(manualHost.isEmpty || isLoading)
                 }
             }
         } header: {
@@ -104,6 +146,24 @@ struct ContentView: View {
                 Text(statusMessage)
                     .foregroundStyle(statusMessage.starts(with: "Error") ? .red : .secondary)
             }
+        }
+    }
+
+    // MARK: - Settings
+
+    private var settingsSection: some View {
+        Section("Settings") {
+            Toggle("Media Controls", isOn: $mediaControlsEnabled)
+            Toggle("Live Playback Stream", isOn: $liveStreamEnabled)
+                .onChange(of: liveStreamEnabled) { _, enabled in
+                    if enabled {
+                        if let service = connectedService {
+                            observer.connect(to: service.baseURL)
+                        }
+                    } else {
+                        observer.disconnect()
+                    }
+                }
         }
     }
 
@@ -137,6 +197,42 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Now Playing
+
+    private var nowPlayingSection: some View {
+        Section("Now Playing") {
+            if observer.isConnected {
+                // Position display
+                HStack {
+                    Image(systemName: "timer")
+                        .foregroundStyle(.secondary)
+                    Text("Position")
+                    Spacer()
+                    Text(formattedTime(observer.state.position))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+
+                // Live volume display
+                HStack {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .foregroundStyle(.secondary)
+                    Text("Volume")
+                    Spacer()
+                    Text("\(Int(observer.state.volume * 100))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack {
+                    ProgressView()
+                    Text("Connecting to stream…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
     // MARK: - Media
 
     private var mediaSection: some View {
@@ -159,6 +255,67 @@ struct ContentView: View {
                 }
             }
             .padding(.vertical, 4)
+
+            // Skip to position
+            HStack {
+                TextField("Seconds (e.g. 90.5)", text: $skipPositionText)
+                    .keyboardType(.decimalPad)
+                Button {
+                    sendSkip()
+                } label: {
+                    Label("Skip to", systemImage: "arrow.right.to.line")
+                }
+                .disabled(Double(skipPositionText) == nil || isLoading)
+            }
+
+            // Seek forward/backward
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Seek: \(Int(seekSeconds))s")
+                    .font(.subheadline)
+                Slider(value: $seekSeconds, in: 5...120, step: 5)
+                HStack {
+                    Button {
+                        sendSeek(offset: -seekSeconds)
+                    } label: {
+                        Label("\(Int(seekSeconds))s", systemImage: "gobackward")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoading)
+
+                    Button {
+                        sendSeek(offset: seekSeconds)
+                    } label: {
+                        Label("\(Int(seekSeconds))s", systemImage: "goforward")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoading)
+                }
+            }
+            .padding(.vertical, 4)
+
+            // Volume
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Volume: \(Int(volumeLevel * 100))%")
+                    .font(.subheadline)
+                HStack {
+                    Image(systemName: "speaker.fill")
+                        .foregroundStyle(.secondary)
+                    Slider(value: $volumeLevel, in: 0...1, step: 0.05)
+                    Image(systemName: "speaker.wave.3.fill")
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    sendVolume()
+                } label: {
+                    Label("Set Volume", systemImage: "speaker.wave.2.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isLoading)
+            }
+            .padding(.vertical, 4)
         }
     }
 
@@ -175,6 +332,9 @@ struct ContentView: View {
                 connectedService = service
                 connectionLabel = "\(label) (\(host):\(port))"
                 isConnected = true
+                if liveStreamEnabled {
+                    observer.connect(to: service.baseURL)
+                }
                 statusMessage = "Connected – \(response)"
             } catch {
                 statusMessage = "Error: \(error.localizedDescription)"
@@ -184,6 +344,7 @@ struct ContentView: View {
     }
 
     private func disconnect() {
+        observer.disconnect()
         connectedService = nil
         isConnected = false
         connectionLabel = ""
@@ -220,6 +381,67 @@ struct ContentView: View {
             }
             isLoading = false
         }
+    }
+
+    private func sendSkip() {
+        guard let service = connectedService,
+              let position = Double(skipPositionText) else { return }
+        isLoading = true
+        statusMessage = ""
+
+        Task {
+            do {
+                let response = try await service.skipToPosition(position)
+                statusMessage = response
+            } catch {
+                statusMessage = "Error: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+    }
+
+    private func sendSeek(offset: Double) {
+        guard let service = connectedService else { return }
+        isLoading = true
+        statusMessage = ""
+
+        Task {
+            do {
+                let response = try await service.seek(offset: offset)
+                statusMessage = response
+            } catch {
+                statusMessage = "Error: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+    }
+
+    private func sendVolume() {
+        guard let service = connectedService else { return }
+        isLoading = true
+        statusMessage = ""
+
+        Task {
+            do {
+                let response = try await service.setVolume(level: volumeLevel)
+                statusMessage = response
+            } catch {
+                statusMessage = "Error: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func formattedTime(_ totalSeconds: Double) -> String {
+        let hours = Int(totalSeconds) / 3600
+        let minutes = (Int(totalSeconds) % 3600) / 60
+        let seconds = Int(totalSeconds) % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

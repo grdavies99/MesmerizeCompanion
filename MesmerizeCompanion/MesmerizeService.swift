@@ -7,7 +7,7 @@ import Foundation
 
 /// Networking layer for the Mesmerize HTTP service.
 actor MesmerizeService {
-    let baseURL: URL
+    nonisolated let baseURL: URL
 
     init(host: String, port: Int) {
         baseURL = URL(string: "http://\(host):\(port)")!
@@ -102,6 +102,39 @@ actor MesmerizeService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body = ["action": action.rawValue]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func skipToPosition(_ seconds: Double) async throws -> String {
+        let endpoint = baseURL.appendingPathComponent("media")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["action": "skip", "position": seconds]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func seek(offset seconds: Double) async throws -> String {
+        let endpoint = baseURL.appendingPathComponent("media")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["action": "seek", "offset": seconds]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func setVolume(level: Double) async throws -> String {
+        let endpoint = baseURL.appendingPathComponent("media")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["action": "volume", "level": level]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await URLSession.shared.data(for: request)
         return String(decoding: data, as: UTF8.self)
